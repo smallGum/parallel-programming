@@ -18,6 +18,7 @@
 
   #include <stdio.h>  // fprintf
   #include <stdlib.h> // exit
+  #include <string.h> // memset
 
 #elif _WIN32
 #  include <windows.h>
@@ -365,7 +366,13 @@ void* workerThreadStart(void* threadArgs) {
 
     WorkerArgs* args = static_cast<WorkerArgs*>(threadArgs);
 
-    // TODO: Implement worker thread here.
+    // Implement worker thread here.
+    // get the number of rows for each thread to calculte
+    int rowsForEachThread = args -> height / args -> numThreads;
+    // calculate the part of the image for current pthread
+    mandelbrotSerial(args -> x0, args -> y0, args -> x1, args -> y1, 
+                    args -> width, args -> height, args -> threadId * rowsForEachThread, 
+                    rowsForEachThread, args -> maxIterations, args -> output);
 
     printf("Hello world from thread %d\n", args->threadId);
 	
@@ -395,9 +402,17 @@ void mandelbrotThread(
     WorkerArgs args[MAX_THREADS];
 
     for (int i=0; i<numThreads; i++) {
-        // TODO: Set thread arguments here.
+        // Set thread arguments here.
+        args[i].x0 = x0;
+        args[i].x1 = x1;
+        args[i].y0 = y0;
+        args[i].y1 = y1;
+        args[i].width = width;
+        args[i].height = height;
+        args[i].maxIterations = maxIterations;
+        args[i].output = output;
         args[i].threadId = i;
-		
+        args[i].numThreads = numThreads;
     }
 
     // Fire up the worker threads.  Note that numThreads-1 pthreads
@@ -420,7 +435,7 @@ int main(int argc, char** argv) {
     const unsigned int width = 1200;
     const unsigned int height = 800;
     const int maxIterations = 256;
-    int numThreads = 2;
+    int numThreads = 16;
 
     float x0 = -2;
     float x1 = 1;
