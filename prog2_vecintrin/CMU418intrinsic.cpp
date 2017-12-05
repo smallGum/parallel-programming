@@ -681,12 +681,52 @@ void clampedExpSerial(float* values, int* exponents, float* output, int N) {
 }
 
 void clampedExpVector(float* values, int* exponents, float* output, int N) {
-  // TODO: Implement your vectorized version of clampedExpSerial here
+  // Implement my vectorized version of clampedExpSerial here
+  __cmu418_vec_float x;
+  __cmu418_vec_int y;
+  __cmu418_vec_int count;
+  __cmu418_vec_float result;
+  __cmu418_vec_int zero = _cmu418_vset_int(0);
+  __cmu418_vec_int intOne = _cmu418_vset_int(1);
+  __cmu418_vec_float floatOne = _cmu418_vset_float(1.f);
+  __cmu418_vec_float clampVal = _cmu418_vset_float(9.999999f);
+  __cmu418_mask maskAll, maskIsZero, maskIsNotZero, maskAllZero, maskIsExceed;
 
   for (int i=0; i<N; i+=VECTOR_WIDTH) {
-	
-  }
+    // All ones
+    maskAll = _cmu418_init_ones();
 
+    // Load vector of values from contiguous memory addresses
+    _cmu418_vload_float(x, values+i, maskAll);                        // x = values[i];
+    // Load vector of exponents from contiguous memory addresses
+    _cmu418_vload_int(y, exponents+i, maskAll);                       // y = exponents[i];
+
+    // Set mask according to predicate
+    _cmu418_veq_int(maskIsZero, y, zero, maskAll);                    // if (y == 0) {
+
+    // Execute instruction using mask ("if" clause)
+    _cmu418_vload_float(result, floatOne.value, maskIsZero);          //   output[i] = 1.f;
+
+    // Inverse maskIsNegative to generate "else" mask
+    maskIsNotZero = _cmu418_mask_not(maskIsZero);                     // } else {
+
+    // Execute instruction using mask ("else" clause)
+    _cmu418_vload_float(result, values+i, maskIsNotZero);             //   float result = x;
+    _cmu418_vsub_int(count, y, intOne, maskIsNotZero);                //   int count = y - 1;
+    _cmu418_veq_int(maskAllZero, count, zero, maskIsNotZero);
+    while (_cmu418_cntbits(maskAllZero)) {                            //   while (count > 0) {
+      _cmu418_vmult_float(result, result, x, maskIsNotZero);          //     result *= x;
+      _cmu418_vsub_int(count, count, intOne, maskIsNotZero);          //     count--;
+      _cmu418_veq_int(maskAllZero, count, zero, maskIsNotZero);
+    }                                                                 //   }
+
+    _cmu418_vgt_float(maskIsExceed, result, clampVal, maskIsNotZero); //   if (result > 9.999999f) {
+    _cmu418_vload_float(result, clampVal.value, maskIsExceed);        //     result = 9.999999f; }
+
+    // Write results back to memory
+    _cmu418_vstore_float(output+i, result, maskAll);                  //   output[i] = result;
+    
+  }
 }
 
 float arraySumSerial(float* values, int N) {
@@ -701,11 +741,33 @@ float arraySumSerial(float* values, int N) {
 // Assume N is a power VECTOR_WIDTH == 0
 // Assume VECTOR_WIDTH is a power of 2
 float arraySumVector(float* values, int N) {
-  // TODO: Implement your vectorized version of arraySumSerial here
+  // Implement my vectorized version of arraySumSerial here
+  __cmu418_vec_float currentVec;
+  __cmu418_vec_float tmpResult1;
+  __cmu418_vec_float tmpResult2;
+  __cmu418_vec_float result;
+  __cmu418_mask maskAll, maskAdd;
 
   for (int i=0; i<N; i+=VECTOR_WIDTH) {
-	  
+    maskAll = _cmu418_init_ones();
+    _cmu418_vload_float(currentVec, values+i, maskAll);
+
+    _cmu418_hadd_float(tmpResult1, currentVec);
+    _cmu418_interleave_float(tmpResult2, tmpResult1);
+
+    maskAdd = _cmu418_init_ones(VECTOR_WIDTH / 2);
+    if (i != 0) { maskAdd = _cmu418_mask_not(maskAdd); }
+    _cmu418_vmove_float(result, tmpResult2, maskAdd);
+    if (i != 0) {
+      _cmu418_hadd_float(tmpResult1, result);
+      _cmu418_interleave_float(result, tmpResult1);
+    }
   }
 
-  return 0.0;
+  for (int i = VECTOR_WIDTH / 2; i > 1; i /= 2) {
+    _cmu418_hadd_float(tmpResult1, result);
+    _cmu418_interleave_float(result, tmpResult1);
+  }
+
+  return result.value[0];
 }
