@@ -435,7 +435,7 @@ int main(int argc, char** argv) {
     const unsigned int width = 1200;
     const unsigned int height = 800;
     const int maxIterations = 256;
-    int numThreads = 16;
+    int numThreads = 2;
 
     float x0 = -2;
     float x1 = 1;
